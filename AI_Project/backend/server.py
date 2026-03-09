@@ -32,6 +32,15 @@ except ImportError as e:
     print("  Install transformers and torch to enable sentiment analysis")
     SENTIMENT_ENABLED = False
 
+# Try to import RAG routes (optional)
+try:
+    from routers import rag_routes
+    RAG_ENABLED = True
+except ImportError as e:
+    print(f"⚠️  RAG features not available: {e}")
+    print("  Install RAG dependencies: pip install -r rag_requirements.txt")
+    RAG_ENABLED = False
+
 print("PYTHON PATH:", sys.executable)
 
 # Initialize FastAPI app
@@ -52,6 +61,11 @@ app.add_middleware(
 
 # Include authentication router
 app.include_router(authentication.router)
+
+# Include RAG router if available
+if RAG_ENABLED:
+    app.include_router(rag_routes.router)
+    print("✓ RAG routes loaded")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
