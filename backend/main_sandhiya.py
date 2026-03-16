@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends
 from fastapi.security import OAuth2PasswordBearer
-from fastapi.middleware.cors import CORSMiddleware
 from oauth2 import verify_access_token
 from routers import authentication
 import sys
@@ -12,8 +11,6 @@ from scraper.selenium_scraper import scrape_reviews, get_product_links
 from scraper.news_scraper import scrape_news
 from llm.sentiment_engine import get_sentiment
 from utils.cleaner import clean_text
-from schemas import Query 
-from services.report_service import analyze_product
 print("PYTHON PATH:", sys.executable)
 
 app = FastAPI()
@@ -21,13 +18,7 @@ app = FastAPI()
 app.include_router(authentication.router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 @app.get("/protected")
 def protected_route(token: str = Depends(oauth2_scheme)):
@@ -144,9 +135,3 @@ def get_news():
     data = list(news_collection.find({}, {"_id": 0}))
     return data
 
-@app.post("/analyze-product")
-def analyze(data: Query):
-
-    result = analyze_product(data.query)
-
-    return result

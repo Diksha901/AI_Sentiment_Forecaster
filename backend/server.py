@@ -1,3 +1,7 @@
+"""
+TrendAI Backend Server
+Main FastAPI application with authentication, scraping, and sentiment analysis
+"""
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
@@ -14,7 +18,7 @@ try:
     from scraper.news_scraper import scrape_news
     SCRAPING_ENABLED = True
 except ImportError as e:
-    print(f"  Scraping modules not available: {e}")
+    print(f"⚠️  Scraping modules not available: {e}")
     print("  Install selenium and beautifulsoup4 to enable scraping features")
     SCRAPING_ENABLED = False
 
@@ -24,9 +28,21 @@ try:
     from utils.cleaner import clean_text
     SENTIMENT_ENABLED = True
 except ImportError as e:
-    print(f"Sentiment analysis not available: {e}")
+    print(f"⚠️  Sentiment analysis not available: {e}")
     print("  Install transformers and torch to enable sentiment analysis")
     SENTIMENT_ENABLED = False
+
+# Try to import RAG routes (optional)
+try:
+    from routers import rag_routes
+    RAG_ENABLED = True
+except ImportError as e:
+    print(f"⚠️  RAG features not available: {e}")
+    print("  Install RAG dependencies: pip install -r rag_requirements.txt")
+    RAG_ENABLED = False
+
+import os
+from bson import ObjectId
 
 print("PYTHON PATH:", sys.executable)
 
@@ -40,7 +56,7 @@ app = FastAPI(
 # CORS Middleware - Allow frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174","*"],  # Frontend URLs
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,6 +64,11 @@ app.add_middleware(
 
 # Include authentication router
 app.include_router(authentication.router)
+
+# Include RAG router if available
+if RAG_ENABLED:
+    app.include_router(rag_routes.router)
+    print("✓ RAG routes loaded")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -64,8 +85,8 @@ except Exception as e:
     print("  Check your internet connection and MongoDB Atlas credentials")
 
 db = client["ai_project_db"]
-product_collection = db["product_results"]
-news_collection = db["news_results"]
+product_collection = db["reviews"]
+news_collection = db["news"]
 
 
 # -----------------------
@@ -242,16 +263,129 @@ def health_check():
         "mongodb": mongo_status,
         "scraping_enabled": SCRAPING_ENABLED,
         "sentiment_enabled": SENTIMENT_ENABLED,
+        "rag_enabled": RAG_ENABLED,
         "version": "1.0.0"
     }
-# Import RAG router
-try:
-    from routers import rag_routes
-    app.include_router(rag_routes.router)
-    print("✓ RAG routes loaded")
-except ImportError as e:
-    print(f"RAG routes not available: {e}")
-    print("  Install RAG dependencies: pip install -r rag_requirements.txt")
+
+
+# -----------------------
+# Startup: Load CSV Data to MongoDB
+# -----------------------
+@app.on_event("startup")
+async def load_csv_to_mongodb():
+    """Load CSV data into MongoDB collections if they are empty on startup"""
+    try:
+        # Load product reviews from CSV
+        if product_collection.count_documents({}) == 0:
+            csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "results.csv")
+            if os.path.exists(csv_path):
+                df = pd.read_csv(csv_path)
+                records = []
+                for _, row in df.iterrows():
+                    records.append({
+                        "category": str(row.get("category", "unknown")),
+                        "platform": str(row.get("platform", "amazon")),
+                        "product_url": str(row.get("product_url", "")),
+                        "review": str(row.get("original_text", "")),
+                        "clean_text": str(row.get("clean_text", "")),
+                        "sentiment_label": str(row.get("sentiment_label", "Neutral")),
+                        "confidence_score": float(row.get("sentiment_score", 0)),
+                    })
+                if records:
+                    product_collection.insert_many(records)
+                    print(f"✓ Loaded {len(records)} product reviews from CSV to MongoDB")
+            else:
+                print(f"⚠ CSV file not found at: {csv_path}")
+        else:
+            print(f"✓ Products collection: {product_collection.count_documents({})} documents already loaded")
+
+        # Load news articles from CSV
+        if news_collection.count_documents({}) == 0:
+            csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "news_results.csv")
+            if os.path.exists(csv_path):
+                df = pd.read_csv(csv_path)
+                records = df.fillna("").to_dict(orient="records")
+                if records:
+                    news_collection.insert_many(records)
+                    print(f"✓ Loaded {len(records)} news articles from CSV to MongoDB")
+        else:
+            print(f"✓ News collection: {news_collection.count_documents({})} documents already loaded")
+
+    except Exception as e:
+        print(f"⚠ CSV loading error: {e}")
+
+
+# -----------------------
+# System Stats Endpoint
+# -----------------------
+@app.get("/api/stats")
+def get_system_stats():
+    """Get system statistics for admin panel"""
+    try:
+        product_count = product_collection.count_documents({})
+        news_count = news_collection.count_documents({})
+        user_count = db["users"].count_documents({})
+
+        pos = product_collection.count_documents({"sentiment_label": "Positive"})
+        neg = product_collection.count_documents({"sentiment_label": "Negative"})
+        neu = product_collection.count_documents({"sentiment_label": "Neutral"})
+        total = product_count if product_count > 0 else 1
+
+        if pos >= neg and pos >= neu:
+            dominant = "Positive"
+        elif neg >= pos and neg >= neu:
+            dominant = "Negative"
+        else:
+            dominant = "Neutral"
+
+        return {
+            "total_reviews": product_count,
+            "total_news": news_count,
+            "total_users": user_count,
+            "positive": pos,
+            "negative": neg,
+            "neutral": neu,
+            "positive_pct": round((pos / total) * 100),
+            "negative_pct": round((neg / total) * 100),
+            "neutral_pct": round((neu / total) * 100),
+            "dominant_sentiment": dominant,
+            "scraping_enabled": SCRAPING_ENABLED,
+            "sentiment_enabled": SENTIMENT_ENABLED,
+            "rag_enabled": RAG_ENABLED,
+        }
+    except Exception as e:
+        return {"error": str(e), "total_reviews": 0, "total_news": 0, "total_users": 0}
+
+
+# -----------------------
+# Current User Profile
+# -----------------------
+@app.get("/api/me")
+def get_my_profile(token: str = Depends(oauth2_scheme)):
+    """Get the currently logged-in user's profile"""
+    payload = verify_access_token(token)
+    user_id = payload.get("user_id")
+    try:
+        user = db["users"].find_one({"_id": ObjectId(user_id)}, {"_id": 0, "password": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -----------------------
+# Admin: User List
+# -----------------------
+@app.get("/api/admin/users")
+def get_all_users(token: str = Depends(oauth2_scheme)):
+    """Get all users for admin panel"""
+    verify_access_token(token)
+    users = list(db["users"].find({}, {"password": 0}).limit(50))
+    for u in users:
+        u["_id"] = str(u["_id"])
+    return {"users": users, "count": len(users)}
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -10,15 +10,17 @@
 from pymongo import MongoClient
 from hashing import hash_password
 
-# # MongoDB connection
-# client = MongoClient("mongodb://localhost:27017")
-# db = client["ai_project_db"]
+# MongoDB Atlas connection
 try:
-    client = MongoClient("mongodb://localhost:27017", serverSelectionTimeoutMS=3000)
+    client = MongoClient(
+        "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0",
+        serverSelectionTimeoutMS=5000
+    )
     client.server_info()
     print("MongoDB Connected Successfully")
 except Exception as e:
     print("MongoDB Connection Failed:", e)
+    
 db = client["ai_project_db"]
 users_collection = db["users"]
 

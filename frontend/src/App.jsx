@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -12,20 +13,22 @@ import AdminPanel from './pages/AdminPanel';
 
 function App() {
     return (
-        <Router>
-            <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/market-trends" element={<MarketTrends />} />
-                <Route path="/sentiment" element={<Sentiment />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/help" element={<HelpCenter />} />
-                <Route path="/admin" element={<AdminPanel />} />
-            </Routes>
-        </Router>
+        <ThemeProvider>
+            <Router>
+                <Routes>
+                    <Route path="/" element={<Landing />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/market-trends" element={<MarketTrends />} />
+                    <Route path="/sentiment" element={<Sentiment />} />
+                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/help" element={<HelpCenter />} />
+                    <Route path="/admin" element={<AdminPanel />} />
+                </Routes>
+            </Router>
+        </ThemeProvider>
     );
 }
 

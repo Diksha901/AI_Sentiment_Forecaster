@@ -1,20 +1,77 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, Plus, ChevronRight, TrendingUp, TrendingDown, Clock, Globe, Laptop, Zap, ArrowUpRight } from 'lucide-react';
+import { Download, Plus, ChevronRight, TrendingUp, TrendingDown, Globe, Zap, Loader2, Newspaper, ArrowUpRight } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const MarketTrends = () => {
-    const stats = [
-        { label: 'Total Search Volume', value: '12.4M', trend: 14, icon: Globe },
-        { label: 'Consumer Sentiment', value: '84%', trend: 2.1, icon: Zap },
-        { label: 'Avg. CPC', value: '$1.28', trend: -4.5, icon: TrendingDown },
-        { label: 'Conversion Potential', value: 'High', status: 'Peak', icon: TrendingUp },
-    ];
+    const navigate = useNavigate();
+    const [newsData, setNewsData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [sentiment, setSentiment] = useState({ positive: 0, negative: 0, neutral: 0, total: 0 });
+    const [keywords, setKeywords] = useState([]);
 
-    const products = [
-        { rank: '01', name: 'Wireless Audio Pro', cat: 'Electronics', growth: 42, val: 85 },
-        { rank: '02', name: 'Smart Home Hub V2', cat: 'IoT', growth: 28, val: 60 },
-        { rank: '03', name: 'Active Wear Gen-Z', cat: 'Fashion', growth: 12, val: 30 },
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) { navigate('/login'); return; }
+        fetchNews(token);
+    }, []);
+
+    const fetchNews = async (token) => {
+        try {
+            setLoading(true);
+            const res = await fetch('/api/news', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch news');
+            const result = await res.json();
+            const data = result.data || [];
+
+            const pos = data.filter(n => n.sentiment_label === 'Positive').length;
+            const neg = data.filter(n => n.sentiment_label === 'Negative').length;
+            const neu = data.filter(n => n.sentiment_label === 'Neutral').length;
+            const total = data.length;
+            setSentiment({
+                positive: total > 0 ? Math.round((pos / total) * 100) : 0,
+                negative: total > 0 ? Math.round((neg / total) * 100) : 0,
+                neutral: total > 0 ? Math.round((neu / total) * 100) : 0,
+                total,
+            });
+
+            // Count keyword mentions
+            const kwCount = {};
+            data.forEach(n => {
+                const kw = n.keyword || n.platform || 'other';
+                kwCount[kw] = (kwCount[kw] || 0) + 1;
+            });
+            const sorted = Object.entries(kwCount)
+                .sort((a, b) => b[1] - a[1])
+                .map(([kw, count], idx) => ({
+                    rank: String(idx + 1).padStart(2, '0'),
+                    name: kw.charAt(0).toUpperCase() + kw.slice(1),
+                    cat: 'News Keyword',
+                    val: Math.min(Math.round((count / total) * 100 * 3), 100),
+                    growth: count,
+                }));
+            setKeywords(sorted.slice(0, 5));
+            setNewsData(data.slice(0, 10));
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExport = () => {
+        const token = localStorage.getItem('token');
+        window.open('/api/news', '_blank');
+    };
+
+    const stats = [
+        { label: 'Total News Articles', value: loading ? '...' : String(sentiment.total), trend: null, icon: Globe },
+        { label: 'Positive News', value: loading ? '...' : `${sentiment.positive}%`, trend: sentiment.positive - 50, icon: Zap },
+        { label: 'Negative News', value: loading ? '...' : `${sentiment.negative}%`, trend: -(sentiment.negative), icon: TrendingDown },
+        { label: 'Neutral News', value: loading ? '...' : `${sentiment.neutral}%`, trend: null, status: 'Mixed', icon: TrendingUp },
     ];
 
     return (
@@ -31,33 +88,15 @@ const MarketTrends = () => {
                     <div className="max-w-3xl">
                         <h1 className="text-4xl font-black text-white tracking-tight mb-3">Market Trends Analysis</h1>
                         <p className="text-slate-400 text-lg leading-relaxed">
-                            Real-time visualization of global product performance and consumer interest shifts across primary markets.
+                            Real-time news sentiment and keyword trend analysis across global markets.
                         </p>
                     </div>
                     <div className="flex gap-4">
-                        <button className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold hover:bg-white/10 transition-all">
+                        <button onClick={handleExport} className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold hover:bg-white/10 transition-all">
                             <Download className="w-4 h-4" /> Export Data
-                        </button>
-                        <button className="flex items-center gap-2 px-6 py-3 bg-primary text-background-dark rounded-xl text-sm font-black shadow-lg shadow-primary/20">
-                            <Plus className="w-5 h-5" /> New Report
                         </button>
                     </div>
                 </div>
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-wrap gap-4 pb-8 border-b border-white/5">
-                {[
-                    { label: 'Category', val: 'Electronics' },
-                    { label: 'Region', val: 'North America' },
-                    { label: 'Timeframe', val: 'Last 30 Days' },
-                ].map((filter) => (
-                    <div key={filter.label} className="bg-white/[0.03] border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-primary/50 transition-all">
-                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">{filter.label}</span>
-                        <span className="text-sm font-bold text-slate-200">{filter.val}</span>
-                    </div>
-                ))}
-                <button className="text-xs font-black text-primary uppercase tracking-widest ml-4 hover:underline">Clear Filters</button>
             </div>
 
             {/* Stats Grid */}
@@ -77,7 +116,7 @@ const MarketTrends = () => {
                         </div>
                         <div className="flex items-end gap-3 relative z-10">
                             <h3 className="text-3xl font-black">{stat.value}</h3>
-                            {stat.trend && (
+                            {stat.trend != null && (
                                 <span className={`text-sm font-bold flex items-center mb-1 ${stat.trend > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {stat.trend > 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
                                     {Math.abs(stat.trend)}%
@@ -91,78 +130,107 @@ const MarketTrends = () => {
                 ))}
             </div>
 
-            {/* Charts Section */}
+            {/* Charts & Trending Keywords Section */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                {/* News Sentiment Summary Chart */}
                 <div className="xl:col-span-2 bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl overflow-hidden relative group">
                     <div className="absolute top-0 right-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
-                    <div className="flex items-center justify-between mb-12">
+                    <div className="flex items-center justify-between mb-10">
                         <div>
-                            <h4 className="text-2xl font-bold">Trend Velocity</h4>
-                            <p className="text-slate-500 font-medium">Interaction vs. Interest over time</p>
+                            <h4 className="text-2xl font-bold">News Sentiment Distribution</h4>
+                            <p className="text-slate-500 font-medium">{loading ? 'Loading data...' : `Based on ${sentiment.total} news articles`}</p>
                         </div>
-                        <div className="flex gap-6">
-                            <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_rgba(13,204,242,0.5)]"></span>
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Interest</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-white/20"></span>
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Baseline</span>
-                            </div>
+                        <div className="flex gap-4">
+                            <span className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest">
+                                <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>Positive
+                            </span>
+                            <span className="flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-widest">
+                                <span className="w-3 h-3 rounded-full bg-rose-400 inline-block"></span>Negative
+                            </span>
+                            <span className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                <span className="w-3 h-3 rounded-full bg-slate-400 inline-block"></span>Neutral
+                            </span>
                         </div>
                     </div>
 
-                    <div className="h-64 w-full relative group/chart">
-                        <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 200">
-                            <defs>
-                                <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                                    <stop offset="0%" stopColor="#0dccf2" stopOpacity="0.3" />
-                                    <stop offset="100%" stopColor="#0dccf2" stopOpacity="0" />
-                                </linearGradient>
-                            </defs>
-                            <motion.path
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 2, ease: "easeInOut" }}
-                                d="M0,150 Q100,140 200,160 T400,120 T600,80 T800,100 T1000,40"
-                                fill="none" stroke="#0dccf2" strokeWidth="4" strokeLinecap="round"
-                            />
-                            <path d="M0,150 Q100,140 200,160 T400,120 T600,80 T800,100 T1000,40 V200 H0 Z" fill="url(#chartGrad)" />
-                        </svg>
-                        <div className="mt-6 flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] border-t border-white/5 pt-4">
-                            {['01 Aug', '08 Aug', '15 Aug', '22 Aug', '29 Aug'].map(d => <span key={d}>{d}</span>)}
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
                         </div>
-                    </div>
-                </div>
-
-                <div className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl">
-                    <h4 className="text-2xl font-bold mb-10">Growing Products</h4>
-                    <div className="space-y-8">
-                        {products.map((p) => (
-                            <div key={p.rank} className="flex items-center gap-4 group">
-                                <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary font-black text-lg group-hover:bg-primary group-hover:text-background-dark transition-all duration-500">
-                                    {p.rank}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="font-bold text-white group-hover:text-primary transition-colors">{p.name}</p>
-                                    <p className="text-xs text-slate-500 font-medium">{p.cat} • High Demand</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-black text-emerald-400">+{p.growth}%</p>
-                                    <div className="w-16 h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden border border-white/5">
+                    ) : (
+                        <div className="space-y-6">
+                            {[
+                                { label: 'Positive', pct: sentiment.positive, color: 'bg-emerald-400' },
+                                { label: 'Neutral', pct: sentiment.neutral, color: 'bg-slate-400' },
+                                { label: 'Negative', pct: sentiment.negative, color: 'bg-rose-400' },
+                            ].map(item => (
+                                <div key={item.label}>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-sm font-bold text-slate-300">{item.label}</span>
+                                        <span className="text-sm font-black text-white">{item.pct}%</span>
+                                    </div>
+                                    <div className="h-3 bg-white/5 rounded-full overflow-hidden">
                                         <motion.div
                                             initial={{ width: 0 }}
-                                            whileInView={{ width: `${p.val}%` }}
-                                            className="h-full bg-emerald-400 rounded-full"
+                                            animate={{ width: `${item.pct}%` }}
+                                            transition={{ duration: 1, ease: 'easeOut' }}
+                                            className={`h-full ${item.color} rounded-full`}
                                         />
                                     </div>
                                 </div>
+                            ))}
+
+                            {/* Recent News */}
+                            <div className="mt-8 space-y-3">
+                                <h5 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Recent Headlines</h5>
+                                {newsData.slice(0, 4).map((n, i) => (
+                                    <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-primary/20 transition-all">
+                                        <span className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${n.sentiment_label === 'Positive' ? 'bg-emerald-400' : n.sentiment_label === 'Negative' ? 'bg-rose-400' : 'bg-slate-400'}`}></span>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-slate-200 truncate">{n.title || 'News Article'}</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{n.keyword && `#${n.keyword}`} · {n.sentiment_label}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                        <button className="w-full mt-4 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black text-primary uppercase tracking-widest hover:bg-white/10 transition-all">
-                            View All Rankings
-                        </button>
-                    </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Trending Keywords */}
+                <div className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl">
+                    <h4 className="text-2xl font-bold mb-10">Trending Keywords</h4>
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                        </div>
+                    ) : (
+                        <div className="space-y-8">
+                            {keywords.length > 0 ? keywords.map((p) => (
+                                <div key={p.rank} className="flex items-center gap-4 group">
+                                    <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-primary font-black text-lg group-hover:bg-primary group-hover:text-background-dark transition-all duration-500">
+                                        {p.rank}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-white group-hover:text-primary transition-colors">{p.name}</p>
+                                        <p className="text-xs text-slate-500 font-medium">{p.growth} articles</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="w-16 h-1.5 bg-white/5 rounded-full mt-2 overflow-hidden border border-white/5">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${p.val}%` }}
+                                                transition={{ duration: 1, ease: 'easeOut' }}
+                                                className="h-full bg-primary rounded-full"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-slate-500 text-sm">No news data available yet.</p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </DashboardLayout>
