@@ -2,6 +2,9 @@
 TrendAI Backend Server
 Main FastAPI application with authentication, scraping, and sentiment analysis
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
@@ -62,6 +65,16 @@ except ImportError as e:
     print("  Install dependencies: pip install langchain-groq")
     INSIGHTS_ENABLED = False
 
+# Try to import Pipeline routes (optional)
+try:
+    from routers import pipeline_routes
+    from services.automated_pipeline import pipeline
+    PIPELINE_ENABLED = True
+except ImportError as e:
+    print(f"[WARN]  Pipeline features not available: {e}")
+    print("  Install dependencies: pip install apscheduler")
+    PIPELINE_ENABLED = False
+
 # Try to import Groq Analysis routes (optional)
 try:
     from routers import groq_analysis_routes
@@ -115,6 +128,11 @@ if RAG_ENABLED:
 if INSIGHTS_ENABLED:
     app.include_router(product_insights_routes.router)
     print("[OK] Product insights routes loaded")
+
+# Include Pipeline router if available
+if PIPELINE_ENABLED:
+    app.include_router(pipeline_routes.router)
+    print("[OK] Pipeline routes loaded")
 
 # Include Groq Analysis router if available
 if GROQ_ANALYSIS_ENABLED:
@@ -429,6 +447,28 @@ async def load_csv_to_mongodb():
 
     except Exception as e:
         print(f"[WARN] CSV loading error: {e}")
+
+    # Initialize automated pipeline if available
+    if PIPELINE_ENABLED:
+        try:
+            pipeline.start()
+            print("[OK] Automated pipeline scheduler started")
+        except Exception as e:
+            print(f"[WARN] Failed to start pipeline scheduler: {e}")
+
+
+# -----------------------
+# Shutdown: Stop Pipeline
+# -----------------------
+@app.on_event("shutdown")
+async def shutdown_pipeline():
+    """Stop the automated pipeline scheduler on shutdown"""
+    if PIPELINE_ENABLED:
+        try:
+            pipeline.stop()
+            print("[OK] Automated pipeline scheduler stopped")
+        except Exception as e:
+            print(f"[WARN] Error stopping pipeline: {e}")
 
 
 # -----------------------
