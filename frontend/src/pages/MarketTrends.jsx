@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Download, ChevronRight, TrendingUp, TrendingDown, Globe, Zap, Loader2 } from 'lucide-react';
+import { Download, ChevronRight, TrendingUp, TrendingDown, Globe, Zap, Loader2, Search, X } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { apiFetch, exportAsCsv } from '../lib/api';
 import { sentimentBreakdown } from '../lib/sentiment';
+
+// Predefined keywords with categories
+const PREDEFINED_KEYWORDS = {
+    'Tech': ['iPhone', 'Samsung', 'Pixel', 'MacBook', 'iPad', 'Apple', 'Google', 'Microsoft', 'laptop', 'smartphone', 'tablet', 'smartwatch'],
+    'E-commerce': ['Amazon', 'Flipkart', 'Myntra', 'Ajio', 'Snapdeal', 'Meesho', 'Nykaa', 'Blinkit', 'Swiggy'],
+    'Brands': ['Nike', 'Adidas', 'Puma', 'Gucci', 'Zara', 'H&M', 'UNIQLO', 'Forever 21', 'ASOS'],
+    'Home & Living': ['Ikea', 'Godrej', 'Furniture', 'Mattress', 'Appliances', 'AC', 'Microwave', 'Refrigerator'],
+    'Fashion': ['Clothing', 'Shoes', 'Watches', 'Bags', 'Accessories', 'Dress', 'Jacket', 'Jeans'],
+    'Food & Beverage': ['Starbucks', 'Dominos', 'McDonald\'s', 'KFC', 'Coca Cola', 'Pepsi', 'Coffee', 'Pizza'],
+};
 
 const MarketTrends = () => {
     const navigate = useNavigate();
@@ -12,12 +22,36 @@ const MarketTrends = () => {
     const [loading, setLoading] = useState(true);
     const [sentiment, setSentiment] = useState({ positive: 0, negative: 0, neutral: 0, total: 0 });
     const [keywords, setKeywords] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [filteredSuggestions, setFilteredSuggestions] = useState([]);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) { navigate('/login'); return; }
         fetchNews();
     }, []);
+
+    // Handle search input and show suggestions
+    useEffect(() => {
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            const suggestions = [];
+
+            Object.entries(PREDEFINED_KEYWORDS).forEach(([category, kws]) => {
+                const matches = kws.filter(kw => kw.toLowerCase().includes(query));
+                matches.forEach(kw => {
+                    suggestions.push({ name: kw, category });
+                });
+            });
+
+            setFilteredSuggestions(suggestions.slice(0, 8));
+            setShowSuggestions(suggestions.length > 0);
+        } else {
+            setShowSuggestions(false);
+            setFilteredSuggestions([]);
+        }
+    }, [searchQuery]);
 
     const fetchNews = async () => {
         try {
@@ -54,7 +88,7 @@ const MarketTrends = () => {
                     val: Math.min(Math.round((count / total) * 100 * 3), 100),
                     growth: count,
                 }));
-            setKeywords(sorted.slice(0, 5));
+            setKeywords(sorted.slice(0, 8)); // Show more keywords
             setNewsData(data.slice(0, 10));
         } catch (e) {
             console.error(e);
@@ -72,6 +106,11 @@ const MarketTrends = () => {
             source: item.link,
         }));
         exportAsCsv('market_trends_news.csv', rows);
+    };
+
+    const handleSuggestionClick = (suggestion) => {
+        setSearchQuery(suggestion.name);
+        setShowSuggestions(false);
     };
 
     const stats = [
@@ -104,6 +143,56 @@ const MarketTrends = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* Search Bar with Suggestions */}
+                <div className="relative">
+                    <div className="relative bg-white/[0.03] border border-white/10 rounded-2xl flex items-center px-4 py-3">
+                        <Search className="w-5 h-5 text-slate-400 mr-3" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search keywords (e.g., iPhone, Amazon, Nike)..."
+                            className="flex-1 bg-transparent outline-none text-white placeholder:text-slate-500 text-sm"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setShowSuggestions(false);
+                                }}
+                                className="text-slate-400 hover:text-slate-300"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Suggestions Dropdown */}
+                    {showSuggestions && filteredSuggestions.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                        >
+                            <div className="max-h-64 overflow-y-auto">
+                                {filteredSuggestions.map((suggestion, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleSuggestionClick(suggestion)}
+                                        className="w-full px-4 py-3 text-left hover:bg-white/5 border-b border-white/5 last:border-b-0 transition-colors flex items-center justify-between group"
+                                    >
+                                        <div>
+                                            <p className="text-white font-medium text-sm">{suggestion.name}</p>
+                                            <p className="text-xs text-slate-500">{suggestion.category}</p>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-primary" />
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </div>
             </div>
 
             {/* Stats Grid */}
@@ -114,12 +203,12 @@ const MarketTrends = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.1 }}
-                        className="bg-white/[0.03] border border-white/10 p-8 rounded-[2.5rem] relative group"
+                        className="bg-white/[0.03] border border-white/10 p-8 rounded-[2.5rem] relative group hover:border-white/20 transition-all"
                     >
                         <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-3xl rounded-full translate-x-12 -translate-y-12"></div>
                         <div className="flex items-center justify-between mb-6">
                             <p className="text-xs font-black uppercase text-slate-500 tracking-widest">{stat.label}</p>
-                            <stat.icon className="w-5 h-5 text-primary opacity-50" />
+                            <stat.icon className="w-5 h-5 text-primary opacity-50 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <div className="flex items-end gap-3 relative z-10">
                             <h3 className="text-3xl font-black">{stat.value}</h3>
@@ -140,77 +229,154 @@ const MarketTrends = () => {
             {/* Sentiment Analysis & Trending Keywords */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 {/* News Sentiment Summary */}
-                <div className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl">
-                    <h4 className="text-2xl font-bold mb-6">News Sentiment Summary</h4>
+                <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl hover:border-white/20 transition-all"
+                >
+                    <h4 className="text-2xl font-bold mb-2">News Sentiment Summary</h4>
+                    <p className="text-sm text-slate-500 mb-6">Sentiment breakdown across {sentiment.total} articles</p>
                     {loading ? (
                         <div className="flex items-center justify-center h-32">
                             <Loader2 className="w-12 h-12 text-primary animate-spin" />
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            {/* Sentiment Stats */}
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-400">Positive sentiment:</span>
-                                    <span className="text-emerald-400 font-bold text-lg">{sentiment.positive}%</span>
+                            {/* Sentiment Progress Bars */}
+                            <div className="space-y-4">
+                                {/* Positive */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-semibold text-slate-300">Positive Sentiment</span>
+                                        <span className="text-lg font-black text-emerald-400">{sentiment.positive}%</span>
+                                    </div>
+                                    <div className="h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: `${sentiment.positive}%` }}
+                                            transition={{ duration: 1 }}
+                                            className="h-full bg-emerald-400 rounded-full"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-400">Neutral sentiment:</span>
-                                    <span className="text-slate-400 font-bold text-lg">{sentiment.neutral}%</span>
+
+                                {/* Neutral */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-semibold text-slate-300">Neutral Sentiment</span>
+                                        <span className="text-lg font-black text-slate-400">{sentiment.neutral}%</span>
+                                    </div>
+                                    <div className="h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: `${sentiment.neutral}%` }}
+                                            transition={{ duration: 1, delay: 0.2 }}
+                                            className="h-full bg-slate-400 rounded-full"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-slate-400">Negative sentiment:</span>
-                                    <span className="text-rose-400 font-bold text-lg">{sentiment.negative}%</span>
+
+                                {/* Negative */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-semibold text-slate-300">Negative Sentiment</span>
+                                        <span className="text-lg font-black text-rose-400">{sentiment.negative}%</span>
+                                    </div>
+                                    <div className="h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: `${sentiment.negative}%` }}
+                                            transition={{ duration: 1, delay: 0.4 }}
+                                            className="h-full bg-rose-400 rounded-full"
+                                        />
+                                    </div>
                                 </div>
-                                <p className="text-xs text-slate-500 pt-3 border-t border-white/10">
-                                    Based on {sentiment.total} news articles analyzed
-                                </p>
                             </div>
 
                             {/* Recent Headlines */}
                             <div className="border-t border-white/10 pt-6">
                                 <h5 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Recent Headlines</h5>
-                                <div className="space-y-2 text-sm">
-                                    {newsData.slice(0, 3).map((n, i) => (
-                                        <div key={i} className="flex items-start gap-2 text-slate-300">
-                                            <span className={`text-lg mr-1 ${n.sentiment_label === 'Positive' ? 'text-emerald-400' : n.sentiment_label === 'Negative' ? 'text-rose-400' : 'text-slate-400'}`}>•</span>
-                                            <div className="flex-1">
-                                                <p className="truncate">{n.title || 'News Article'}</p>
-                                                <p className="text-xs text-slate-500">{n.sentiment_label}</p>
+                                <div className="space-y-3 text-sm max-h-48 overflow-y-auto">
+                                    {newsData.slice(0, 4).map((n, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            whileInView={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: i * 0.1 }}
+                                            className="flex items-start gap-3 p-3 bg-white/[0.02] rounded-lg hover:bg-white/5 transition-colors border border-white/5"
+                                        >
+                                            <span className={`text-2xl ${n.sentiment_label === 'Positive' ? 'text-emerald-400' : n.sentiment_label === 'Negative' ? 'text-rose-400' : 'text-slate-400'}`}>•</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-slate-300 line-clamp-2">{n.title || 'News Article'}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                                        n.sentiment_label === 'Positive' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                        n.sentiment_label === 'Negative' ? 'bg-rose-500/20 text-rose-300' :
+                                                        'bg-slate-500/20 text-slate-300'
+                                                    }`}>
+                                                        {n.sentiment_label}
+                                                    </span>
+                                                    <span className="text-xs text-slate-600">{n.source || 'News'}</span>
+                                                </div>
                                             </div>
-                                        </div>
+                                        </motion.div>
                                     ))}
                                 </div>
                             </div>
                         </div>
                     )}
-                </div>
+                </motion.div>
 
                 {/* Trending Keywords */}
-                <div className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl">
-                    <h4 className="text-2xl font-bold mb-6">Trending Keywords</h4>
+                <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    className="bg-white/[0.03] border border-white/10 p-10 rounded-[3rem] shadow-2xl hover:border-white/20 transition-all"
+                >
+                    <h4 className="text-2xl font-bold mb-2">Trending Keywords</h4>
+                    <p className="text-sm text-slate-500 mb-6">Top keywords mentioned in news</p>
                     {loading ? (
                         <div className="flex items-center justify-center h-32">
                             <Loader2 className="w-12 h-12 text-primary animate-spin" />
                         </div>
                     ) : keywords.length > 0 ? (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             {keywords.map((keyword, i) => (
-                                <div key={keyword.rank} className="flex items-center gap-4">
-                                    <div className="text-sm font-bold text-primary bg-white/5 border border-white/10 rounded-lg px-3 py-2 min-w-12 text-center">
-                                        {keyword.rank}
+                                <motion.div
+                                    key={keyword.rank}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.08 }}
+                                    className="group"
+                                >
+                                    <div className="flex items-center gap-4 p-4 bg-white/[0.02] rounded-xl hover:bg-white/5 border border-white/5 hover:border-primary/30 transition-all cursor-pointer">
+                                        <div className="text-lg font-black text-primary bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30 rounded-lg px-3 py-2 min-w-14 text-center">
+                                            #{keyword.rank}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-white text-sm">{keyword.name}</p>
+                                            <p className="text-xs text-slate-500">{keyword.growth} articles mentioned</p>
+                                        </div>
+                                        <TrendingUp className="w-4 h-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-white">{keyword.name}</p>
-                                        <p className="text-xs text-slate-500">{keyword.growth} articles mentioned</p>
+                                    {/* Progress bar under keyword */}
+                                    <div className="h-1.5 bg-white/5 rounded-full overflow-hidden mt-2 border border-white/5">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            whileInView={{ width: `${keyword.val}%` }}
+                                            transition={{ duration: 1.5, delay: i * 0.1 }}
+                                            className="h-full bg-gradient-to-r from-primary to-emerald-400"
+                                        />
                                     </div>
-                                </div>
+                                </motion.div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-slate-400 text-sm">No trending keywords available.</p>
+                        <p className="text-slate-400 text-sm text-center py-8">No trending keywords available.</p>
                     )}
-                </div>
+                </motion.div>
             </div>
         </DashboardLayout>
     );
