@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
     Download, Calendar, MessageSquare, Smile, Frown, Meh,
     Zap, Search, TrendingUp, TrendingDown, Loader2, RefreshCcw,
-    AlertCircle, ChevronRight, ExternalLink
+    AlertCircle, ChevronRight, ExternalLink, BarChart3
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { apiFetch, apiFetchJSON, exportAsCsv } from '../lib/api';
@@ -133,7 +133,7 @@ const Sentiment = () => {
                 : avgScore,
             outOf: '/100',
             trend: displayPos - sentimentData.negative,
-            icon:  LineChart,
+            icon:  BarChart3,
         },
         {
             label: 'Positive Rate',
