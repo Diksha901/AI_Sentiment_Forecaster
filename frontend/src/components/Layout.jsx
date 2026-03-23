@@ -13,12 +13,12 @@ const Navbar = () => {
                     </div>
                     <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">TrendAI</h2>
                 </NavLink>
-                <nav className="hidden md:flex flex-1 justify-center gap-8">
+                {/* <nav className="hidden md:flex flex-1 justify-center gap-8">
                     <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer text-[var(--text-secondary)]">Product</a>
                     <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer text-[var(--text-secondary)]">Solutions</a>
                     <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer text-[var(--text-secondary)]">Pricing</a>
                     <a className="text-sm font-medium hover:text-primary transition-colors cursor-pointer text-[var(--text-secondary)]">About</a>
-                </nav>
+                </nav> */}
                 <div className="flex items-center gap-4">
                     <ThemeToggle />
                     <NavLink to="/login" className="hidden sm:block text-sm font-bold hover:text-primary px-4 text-[var(--text-secondary)]">Login</NavLink>
