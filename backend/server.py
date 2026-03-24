@@ -94,6 +94,7 @@ import random
 from datetime import datetime,timedelta
 from database import client, db
 from routers import reports_routes
+from routers import billing_routes
 
 # Try to import realtime analysis service (optional)
 try:
@@ -150,6 +151,9 @@ if KEYWORD_ENABLED:
 
 # Include custom reports router
 app.include_router(reports_routes.router)
+
+# Include billing router for Razorpay payments
+app.include_router(billing_routes.router)
 
 # Include RAG router if available
 if RAG_ENABLED:
@@ -645,8 +649,29 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
     payload = verify_access_token(token)
     user_id = payload.get("user_id")
 
+    # Get existing settings to preserve subscription metadata
+    existing_settings = db["settings"].find_one({"user_id": user_id})
+
+    # Check if user is trying to downgrade their plan
+    if existing_settings:
+        current_plan = existing_settings.get("plan", "Free")
+        new_plan = data.get("plan", current_plan)
+        payment_status = existing_settings.get("payment_status", "none")
+
+        # Prevent downgrades for users with active subscriptions
+        if payment_status == "active" and current_plan != "Free":
+            plan_tiers = {"Free": 0, "Pro Business": 1, "Enterprise": 2}
+            current_tier = plan_tiers.get(current_plan, 0)
+            new_tier = plan_tiers.get(new_plan, 0)
+
+            if new_tier < current_tier:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Cannot downgrade from {current_plan} to {new_plan}. Users with active paid subscriptions can only upgrade."
+                )
+
     update_doc = {
-        "user_id": user_id, # Ensure user_id is linked
+        "user_id": user_id,
         "emailAlerts": data.get("emailAlerts", True),
         "systemUpdates": data.get("systemUpdates", True),
         "twoFactorEnabled": data.get("twoFactorEnabled", False),
@@ -656,6 +681,22 @@ async def update_settings(data: dict, token: str = Depends(oauth2_scheme)):
         "cardExpiry": data.get("cardExpiry"),
         "usage": data.get("usage", {"ai": 0, "storage": 0})
     }
+
+    # Preserve subscription metadata when switching between plans
+    if existing_settings:
+        # Keep subscription status fields when updating plan (don't overwrite on plan switches)
+        if "payment_status" in existing_settings:
+            update_doc["payment_status"] = existing_settings["payment_status"]
+        if "plan_expiry_date" in existing_settings:
+            update_doc["plan_expiry_date"] = existing_settings["plan_expiry_date"]
+        if "plan_purchased_date" in existing_settings:
+            update_doc["plan_purchased_date"] = existing_settings["plan_purchased_date"]
+        if "remaining_days" in existing_settings:
+            update_doc["remaining_days"] = existing_settings["remaining_days"]
+        if "paymentId" in existing_settings:
+            update_doc["paymentId"] = existing_settings["paymentId"]
+        if "orderId" in existing_settings:
+            update_doc["orderId"] = existing_settings["orderId"]
 
     db["settings"].update_one(
         {"user_id": user_id},

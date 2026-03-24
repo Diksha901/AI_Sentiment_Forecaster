@@ -73,7 +73,7 @@
 #         raise e
 from fastapi import APIRouter, HTTPException, Depends
 from schemas import UserLogin, UserRegister
-from hashing import verify_password
+from hashing import verify_password, hash_password, is_bcrypt_hash
 from services import user_service
 from oauth2 import create_access_token
 from datetime import datetime, timedelta
@@ -90,9 +90,12 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 otp_collection = db["otps"]
+user_service.ensure_admin_user()
 
 @router.post("/login")
 async def login(payload: UserLogin): # Use your Pydantic schema for validation
+    user_service.ensure_admin_user()
+
     # 1. Fetch user
     user = user_service.get_user_by_email(payload.email) 
     
@@ -102,6 +105,14 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
 
     if not verify_password(payload.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid password")
+
+    # Migrate any legacy plaintext password to bcrypt on successful login.
+    if not is_bcrypt_hash(user.get("password", "")):
+        upgraded_hash = hash_password(payload.password)
+        db["users"].update_one({"_id": user["_id"]}, {"$set": {"password": upgraded_hash}})
+        user["password"] = upgraded_hash
+
+    is_admin = bool(user.get("is_admin", False))
 
     # 3. Check if 2FA is enabled (check 'settings' or 'users' collection)
     # Usually, 2FA status is stored in the settings collection or user doc
@@ -126,12 +137,13 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
         return {
             "status": "2fa_required", 
             "email": user["email"],
-            "message": "Please enter the OTP sent to your email"
+            "message": "Please enter the OTP sent to your email",
+            "is_admin": is_admin,
         }
 
     # 4. Normal login logic (No 2FA)
-    token = create_access_token(data={"user_id": str(user["_id"])})
-    return {"access_token": token, "token_type": "bearer"}
+    token = create_access_token(data={"user_id": str(user["_id"]), "is_admin": is_admin})
+    return {"access_token": token, "token_type": "bearer", "is_admin": is_admin}
 
 @router.post("/verify-2fa")
 async def verify_2fa(payload: dict):
@@ -152,12 +164,13 @@ async def verify_2fa(payload: dict):
 
     # OTP is valid! Get the user to issue the final token
     user = user_service.get_user_by_email(email)
-    token = create_access_token(data={"user_id": str(user["_id"])})
+    is_admin = bool(user.get("is_admin", False)) if user else False
+    token = create_access_token(data={"user_id": str(user["_id"]), "is_admin": is_admin})
     
     # Clean up: Delete OTP after successful use
     otp_collection.delete_one({"email": email})
 
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "is_admin": is_admin}
 
 @router.post("/register")
 def register(user: UserRegister):

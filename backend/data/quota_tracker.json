@@ -2,19 +2,19 @@
   "gemini": {
     "requests_today": 0,
     "max_daily": 50,
-    "reset_time": "2026-03-24T16:21:09.164660",
+    "reset_time": "2026-03-25T17:01:09.741709",
     "exhausted": false
   },
   "newsapi": {
-    "requests_today": 25,
+    "requests_today": 46,
     "max_daily": 100,
-    "reset_time": "2026-03-24T16:21:09.136733",
+    "reset_time": "2026-03-25T17:01:09.737967",
     "exhausted": false
   },
   "gnews": {
     "requests_today": 0,
     "max_daily": 100,
-    "reset_time": "2026-03-24T16:21:09.152398",
+    "reset_time": "2026-03-25T17:01:09.738929",
     "exhausted": false
   }
 }

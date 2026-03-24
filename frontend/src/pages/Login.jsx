@@ -39,6 +39,7 @@ const Login = () => {
                 setStep("2fa");
             } else if (data.access_token) {
                 localStorage.setItem("token", data.access_token);
+                localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
                 navigate("/dashboard");
             }
 
@@ -64,6 +65,7 @@ const Login = () => {
 
             if (response.ok && data.access_token) {
                 localStorage.setItem("token", data.access_token);
+                localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
                 navigate("/dashboard");
             } else {
                 setError(data.detail || "Invalid OTP");

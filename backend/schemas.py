@@ -13,6 +13,7 @@ class RealtimeAnalyzeRequest(BaseModel):
     product: str = Field(..., min_length=2, max_length=100)
     max_articles: int = Field(default=25, ge=5, le=100)
     force_refresh: bool = False
+    llm_provider: str = Field(default="auto", pattern="^(auto|groq|gemini)$")
 
 
 class ProfileUpdateRequest(BaseModel):

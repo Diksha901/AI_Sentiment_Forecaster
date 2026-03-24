@@ -181,7 +181,7 @@ const Landing = () => {
                                 Get Started Now
                             </button>
                         </Link>
-                        <Link to="/help">
+                        <Link to="/login">
                             <button className="bg-white/5 dark:bg-white/5 light:bg-slate-100 backdrop-blur-md border border-white/10 dark:border-white/10 light:border-slate-300 rounded-2xl px-12 py-6 text-xl font-bold hover:bg-white/10 dark:hover:bg-white/10 light:hover:bg-slate-200 transition-all text-[var(--text-primary)]">
                                 Contact Sales
                             </button>

@@ -8,6 +8,7 @@ const DashboardLayout = ({ children, title = "Dashboard" }) => {
 
     const handleLogout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('is_admin');
         navigate('/login');
     };
 

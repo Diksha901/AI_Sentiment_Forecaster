@@ -14,9 +14,24 @@ const AdminPanel = () => {
         const token = localStorage.getItem('token');
         if (!token) { navigate('/login'); return; }
 
+        const isAdmin = localStorage.getItem('is_admin') === 'true';
+        if (!isAdmin) { navigate('/dashboard'); return; }
+
         Promise.all([
             fetch('/api/stats').then(r => r.json()),
-            fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+            fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(async (r) => {
+                if (r.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('is_admin');
+                    navigate('/login');
+                    return { users: [] };
+                }
+                if (r.status === 403) {
+                    navigate('/dashboard');
+                    return { users: [] };
+                }
+                return r.json();
+            }),
         ]).then(([statsData, usersData]) => {
             setApiStats(statsData);
             if (usersData.users) {

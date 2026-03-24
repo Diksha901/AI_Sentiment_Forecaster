@@ -56,6 +56,7 @@ const Signup = () => {
             if (loginResponse.ok) {
                 // Save JWT token and navigate to dashboard
                 localStorage.setItem("token", loginData.access_token);
+                localStorage.setItem("is_admin", String(Boolean(loginData.is_admin)));
                 navigate("/dashboard");
             } else {
                 // If auto-login fails, redirect to login page
