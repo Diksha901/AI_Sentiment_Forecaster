@@ -770,6 +770,7 @@ const Settings = () => {
                         </div>
                     </div>
                     </div>
+                    </div>
                 </section>
             </div>
         </DashboardLayout>
