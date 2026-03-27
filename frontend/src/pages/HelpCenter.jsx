@@ -160,9 +160,9 @@
 // export default HelpCenter;
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Search, Rocket, Zap, CreditCard, Terminal, 
-    ChevronRight, MessageSquare, Ticket, Globe, X 
+import {
+    Search, Rocket, Zap, CreditCard, Terminal,
+    ChevronRight, MessageSquare, Globe, X
 } from 'lucide-react';
 import Chatbot from 'react-chatbot-kit';
 import config from '../lib/chatbot/config';
@@ -326,14 +326,11 @@ const HelpCenter = () => {
                                     <p className="text-slate-500 mt-2 leading-relaxed">Our support team is available 24/7.</p>
                                 </div>
                                 <div className="space-y-4">
-                                    <button 
+                                    <button
                                         onClick={() => setIsChatOpen(true)}
                                         className="w-full h-16 bg-primary text-background-dark font-black rounded-2xl flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-xl shadow-primary/20"
                                     >
                                         <MessageSquare className="w-5 h-5" /> Start Live Chat
-                                    </button>
-                                    <button className="w-full h-16 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all">
-                                        <Ticket className="w-5 h-5" /> Open a Ticket
                                     </button>
                                 </div>
                                 <div className="flex items-center gap-4 pt-6 border-t border-white/5">
@@ -374,31 +371,147 @@ const HelpCenter = () => {
                     </div>
                 </div>
             )} */}
-            {/* Floating Chatbot Integration Point */}
+            {/* Floating Chatbot Modal - Enhanced Styling */}
             {isChatOpen && (
-                <div className="fixed bottom-6 right-6 z-[100] w-[375px] max-h-[600px] h-[80vh] bg-background-dark border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
-                    
-                    {/* Header - Stays fixed at the top of the chat window */}
-                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5 backdrop-blur-md">
-                        <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                            <span className="font-bold text-white text-sm tracking-tight">TrendAI Assistant</span>
-                        </div>
-                        <button 
-                            onClick={() => setIsChatOpen(false)} 
-                            className="p-1 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end justify-end p-6 pointer-events-none">
+                    <div className="w-full max-w-sm h-[600px] bg-background-dark border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 pointer-events-auto">
 
-                    {/* The Actual Chatbot Wrapper */}
-                    <div className="flex-1 overflow-y-auto chatbot-container">
-                        <Chatbot
-                            config={config}
-                            messageParser={MessageParser}
-                            actionProvider={ActionProvider}
-                        />
+                        {/* Header with Gradient */}
+                        <div className="flex items-center justify-between p-5 border-b border-white/5 bg-gradient-to-r from-primary/10 to-transparent">
+                            <div className="flex items-center gap-3">
+                                <div className="w-3 h-3 rounded-full bg-primary animate-pulse shadow-lg shadow-primary/50"></div>
+                                <div>
+                                    <p className="text-white font-black text-sm tracking-tight">TrendAI Assistant</p>
+                                    <p className="text-slate-400 text-[11px] font-medium">Powered by Groq AI</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsChatOpen(false)}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-primary"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Chatbot Container */}
+                        <div className="flex-1 bg-[#0a0e27] flex flex-col overflow-visible">
+                            <style>{`
+                                .help-chatbot-container {
+                                    display: flex;
+                                    flex-direction: column;
+                                    height: 100%;
+                                    overflow: visible;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-chat-container {
+                                    background: transparent;
+                                    border: none;
+                                    height: 100%;
+                                    display: flex;
+                                    flex-direction: column;
+                                    overflow: visible;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-messages-container {
+                                    background: transparent;
+                                    padding: 16px;
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 12px;
+                                    flex: 1;
+                                    overflow-y: auto;
+                                    overflow-x: hidden;
+                                    min-height: 0;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar {
+                                    width: 6px;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-track {
+                                    background: rgba(13, 203, 242, 0.1);
+                                    border-radius: 10px;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb {
+                                    background: rgba(13, 203, 242, 0.3);
+                                    border-radius: 10px;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-messages-container::-webkit-scrollbar-thumb:hover {
+                                    background: rgba(13, 203, 242, 0.5);
+                                }
+                                .help-chatbot-container .react-chatbot-kit-input-section {
+                                    background: linear-gradient(to top, rgba(10, 14, 39, 1), rgba(10, 14, 39, 0.95));
+                                    border-top: 1px solid rgba(13, 203, 242, 0.1);
+                                    padding: 12px;
+                                    margin: 0;
+                                    flex-shrink: 0;
+                                    flex-grow: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    z-index: 10;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-input-group {
+                                    gap: 8px;
+                                    background: rgba(13, 203, 242, 0.05);
+                                    border: 1px solid rgba(13, 203, 242, 0.15);
+                                    border-radius: 12px;
+                                    padding: 10px;
+                                    display: flex !important;
+                                    align-items: center;
+                                    width: 100%;
+                                    transition: all 0.2s ease;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-input-group:focus-within {
+                                    border-color: rgba(13, 203, 242, 0.4);
+                                    background: rgba(13, 203, 242, 0.08);
+                                    box-shadow: 0 0 12px rgba(13, 203, 242, 0.1);
+                                }
+                                .help-chatbot-container .react-chatbot-kit-chat-input {
+                                    background: transparent;
+                                    color: white;
+                                    border: none;
+                                    font-size: 14px;
+                                    flex: 1;
+                                    padding: 6px 0;
+                                    outline: none;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-chat-input::placeholder {
+                                    color: rgba(148, 163, 184, 0.6);
+                                }
+                                .help-chatbot-container .react-chatbot-kit-send-button {
+                                    background: #0dcbf2;
+                                    color: #0f172a;
+                                    border: none;
+                                    border-radius: 8px;
+                                    padding: 8px 14px;
+                                    font-weight: 700;
+                                    cursor: pointer;
+                                    transition: all 0.2s ease;
+                                    flex-shrink: 0;
+                                    font-size: 13px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-send-button:hover {
+                                    background: #0fbfdf;
+                                    transform: scale(1.05);
+                                    box-shadow: 0 4px 12px rgba(13, 203, 242, 0.3);
+                                }
+                                .help-chatbot-container .react-chatbot-kit-send-button:active {
+                                    transform: scale(0.98);
+                                }
+                                .help-chatbot-container .react-chatbot-kit-user-chat-message-container {
+                                    justify-content: flex-end !important;
+                                }
+                                .help-chatbot-container .react-chatbot-kit-chat-message-container {
+                                    margin-bottom: 8px;
+                                }
+                            `}</style>
+                            <div className="help-chatbot-container h-full flex flex-col">
+                                <Chatbot
+                                    config={config}
+                                    messageParser={MessageParser}
+                                    actionProvider={ActionProvider}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
