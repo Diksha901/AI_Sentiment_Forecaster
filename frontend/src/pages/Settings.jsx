@@ -40,27 +40,11 @@ const Settings = () => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) { navigate('/login'); return; }
-        const fetchUser = async () => {
-            const res = await apiFetch('/api/me');
-            if (res.ok) {
-                const data = await res.json();
-                const userData = {
-                    firstname: data.firstname || '',
-                    lastname: data.lastname || '',
-                    email: data.email || ''
-                };
-                setProfile(userData);
-                setForm(userData);
-        const res = await apiFetch('/api/me');
-            if (res.ok) {
-                const data = await res.json();
-                setTopNavUser(data); // Update the top-right image here
-            }
-        };
+        
         Promise.all([
             apiFetch('/api/me'),
             apiFetch('/api/settings'),
-            apiFetch('/api/billing/subscription-status')  // New: Get subscription status
+            apiFetch('/api/billing/subscription-status')
         ]).then(async ([profileRes, settingsRes, subStatusRes]) => {
             if (profileRes.ok) {
                 const data = await profileRes.json();
@@ -76,7 +60,6 @@ const Settings = () => {
                 const data = await settingsRes.json();
                 setSettings(prev => ({ ...prev, ...data }));
             }
-            // New: Process subscription status
             if (subStatusRes.ok) {
                 const subStatus = await subStatusRes.json();
                 console.log('[INFO] Subscription status:', subStatus);
@@ -89,8 +72,6 @@ const Settings = () => {
                 }));
             }
         }).catch(err => console.error("Fetch error:", err));
-        window.addEventListener('profileUpdated', fetchUser);
-        return () => window.removeEventListener('profileUpdated', fetchUser);
     }, [navigate]);
 
     // Scroll to billing section if coming from Sidebar
@@ -180,12 +161,6 @@ const Settings = () => {
         const details = PLAN_DETAILS[newPlan];
         const nextSettings = {
             ...settings,
- }
-    };
-    const handlePlanChange = (newPlan) => {
-        const details = PLAN_DETAILS[newPlan];
-        setSettings(prev => ({
-            ...prev,
             plan: newPlan,
             price: details.price,
             usage: {
@@ -350,8 +325,6 @@ const Settings = () => {
         } finally {
             setCheckoutLoading(false);
         }
-
-        }));
     };
     const handleCardUpdate = (field, value) => {
         setSettings(prev => ({ ...prev, [field]: value }));
@@ -762,45 +735,9 @@ const Settings = () => {
                                             </button>
                                         );
                                     })}
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-4xl font-black text-white">{settings.plan}</h4>
-                                        {/* Dynamic Price */}
-                                        <p className="text-slate-400 mt-2 text-lg">{settings.price} / month</p>
-                                    </div>
-                                    <select 
-                                        className="bg-background-dark border border-white/10 rounded-xl px-4 py-2 text-white outline-none focus:ring-2 focus:ring-primary/50"
-                                        value={settings.plan}
-                                        onChange={e => handlePlanChange(e.target.value)}
-                                    >
-                                        {Object.keys(PLAN_DETAILS).map(planName => (
-                                            <option key={planName} value={planName}>{planName}</option>
-                                        ))}
-                                    </select>
                                 </div>
-                            </div>
-                            
-                            <div className="mt-12 pt-10 border-t border-white/5">
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-6">Payment Method</p>
-                                <div className="flex items-center gap-6">
-                                    <div className="w-20 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
-                                        <CreditCard className="w-6 h-6 text-slate-400" />
-                                    </div>
-                                    <div className="flex-1">
-                                        {/* Dynamic Card Details */}
-                                        <p className="font-bold text-lg">
-                                            {settings.cardLast4 ? `Visa ending in ${settings.cardLast4}` : 'No card linked'}
-                                        </p>
-                                        <p className="text-sm text-slate-500">
-                                            {settings.cardExpiry ? `Expires ${settings.cardExpiry}` : 'Update payment info'}
-                                        </p>
-                                    </div>
-                                    <button className="text-sm font-black text-primary hover:underline uppercase tracking-widest">Edit</button>
-                                </div>
-                            </div>
-                        </div>
 
-                        <div className="bg-primary/5 border border-primary/20 rounded-[3rem] p-10 flex flex-col justify-between">
+                                <div className="bg-primary/5 border border-primary/20 rounded-[3rem] p-10 flex flex-col justify-between">
                             <div>
                                 <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-8">Usage This Month</p>
                                 <div className="space-y-8">
@@ -826,11 +763,12 @@ const Settings = () => {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500 mt-10 italic leading-relaxed">
-                                {settings.plan === 'Enterprise' 
-                                    ? "You're on our highest tier. Contact support for custom limits." 
+                                {settings.plan === 'Enterprise'
+                                    ? "You're on our highest tier. Contact support for custom limits."
                                     : "Need more capacity? Upgrading boosts your AI and storage limits instantly."}
                             </p>
                         </div>
+                    </div>
                     </div>
                 </section>
             </div>
