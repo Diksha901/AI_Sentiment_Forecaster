@@ -101,6 +101,7 @@ reports/output/
 
 # Runtime usage state
 backend/data/usage/quota_state.json
+quota_tracker.json
 
 # Testing
 .coverage
