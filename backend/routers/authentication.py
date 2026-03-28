@@ -74,12 +74,13 @@
 from fastapi import APIRouter, HTTPException, Depends
 from schemas import UserLogin, UserRegister
 from hashing import verify_password, hash_password, is_bcrypt_hash
-from hashing import verify_password
 from services import user_service
+from services.email_service import send_otp_email, send_password_reset_email
 from oauth2 import create_access_token
 from datetime import datetime, timedelta
 import random
-from database import db # Ensure you import your db instance
+from database import db
+import secrets
 
 router = APIRouter(
     prefix="/api/auth",
@@ -126,17 +127,20 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
         otp_collection.update_one(
             {"email": user["email"]},
             {"$set": {
-                "otp": otp, 
+                "otp": otp,
                 "expires_at": datetime.utcnow() + timedelta(minutes=5)
             }},
             upsert=True
         )
-        
-        # DEBUG: In production, send this via Email/SMS
-        print(f"--- 2FA OTP for {user['email']}: {otp} ---")
-        
+
+        # Send OTP via email
+        email_sent = send_otp_email(user["email"], otp)
+
+        if not email_sent:
+            print(f"[WARN] Failed to send OTP email to {user['email']}, showing OTP in response for debugging")
+
         return {
-            "status": "2fa_required", 
+            "status": "2fa_required",
             "email": user["email"],
             "message": "Please enter the OTP sent to your email",
             "is_admin": is_admin,
@@ -189,3 +193,87 @@ def register(user: UserRegister):
     except Exception as e:
         print("REGISTER ERROR:", str(e))
         raise e
+
+@router.post("/forgot-password")
+async def forgot_password(payload: dict):
+    """Request password reset email"""
+    email = payload.get("email")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    try:
+        user = user_service.get_user_by_email(email)
+
+        if not user:
+            # Don't reveal if user exists for security
+            return {"message": "If email exists, password reset link has been sent"}
+
+        # Generate reset token
+        reset_token = secrets.token_urlsafe(32)
+
+        # Store reset token with 30-minute expiry
+        reset_collection = db["password_resets"]
+        reset_collection.update_one(
+            {"email": email},
+            {"$set": {
+                "token": reset_token,
+                "expires_at": datetime.utcnow() + timedelta(minutes=30)
+            }},
+            upsert=True
+        )
+
+        # Create reset link (frontend will handle this URL)
+        reset_link = f"https://ai-sentiment-forecaster.onrender.com/reset-password?token={reset_token}&email={email}"
+
+        # Send email
+        email_sent = send_password_reset_email(email, reset_token, reset_link)
+
+        if not email_sent:
+            print(f"[WARN] Failed to send password reset email to {email}")
+
+        return {"message": "If email exists, password reset link has been sent"}
+
+    except Exception as e:
+        print(f"[FAIL] Forgot password error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to process password reset request")
+
+@router.post("/reset-password")
+async def reset_password(payload: dict):
+    """Reset password with token"""
+    token = payload.get("token")
+    email = payload.get("email")
+    new_password = payload.get("new_password")
+
+    if not token or not email or not new_password:
+        raise HTTPException(status_code=400, detail="Token, email, and new_password are required")
+
+    try:
+        reset_collection = db["password_resets"]
+
+        # Find reset entry
+        reset_entry = reset_collection.find_one({"email": email, "token": token})
+
+        if not reset_entry:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+        if reset_entry["expires_at"] < datetime.utcnow():
+            raise HTTPException(status_code=400, detail="Reset token has expired")
+
+        # Update user password
+        hashed_password = hash_password(new_password)
+        db["users"].update_one(
+            {"email": email},
+            {"$set": {"password": hashed_password}}
+        )
+
+        # Delete used token
+        reset_collection.delete_one({"email": email})
+
+        return {"message": "Password reset successful. You can now login with your new password."}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[FAIL] Reset password error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to reset password")
