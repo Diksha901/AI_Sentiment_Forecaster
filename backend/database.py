@@ -6,38 +6,43 @@ from __future__ import annotations
 
 import os
 import warnings
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Must be set BEFORE importing pymongo/cryptography
 warnings.simplefilter("ignore", DeprecationWarning)
 
 from pymongo import MongoClient
 
-ATLAS_URI = os.getenv(
-    "MONGODB_URI",
-    "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0",
+# Load .env from backend/ first, then project root as fallback.
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
+load_dotenv(BACKEND_DIR / ".env", override=False)
+load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+MONGO_URI = (
+    os.getenv("MONGO_URI")
+    or os.getenv("MONGODB_URI")
+    or os.getenv("MONGODB_URL")
 )
-LOCAL_URI = os.getenv("MONGODB_LOCAL_URI", "mongodb://localhost:27017")
 DB_NAME = os.getenv("MONGODB_DB_NAME", "ai_project_db")
+
+if not MONGO_URI:
+    raise RuntimeError(
+        "MongoDB URI not configured. Set MONGO_URI (or MONGODB_URI/MONGODB_URL) in .env."
+    )
 
 
 def create_mongo_client() -> MongoClient:
     try:
-        atlas_client = MongoClient(ATLAS_URI, serverSelectionTimeoutMS=5000)
-        atlas_client.server_info()
-        print("[OK] MongoDB Atlas Connected Successfully")
-        return atlas_client
-    except Exception as atlas_error:
-        print("[FAIL] MongoDB Atlas connection failed:", atlas_error)
-        print("  Trying local MongoDB fallback...")
-        try:
-            local_client = MongoClient(LOCAL_URI, serverSelectionTimeoutMS=2000)
-            local_client.server_info()
-            print("[OK] Local MongoDB Connected Successfully")
-            return local_client
-        except Exception as local_error:
-            print("[FAIL] Local MongoDB connection failed:", local_error)
-            print("[WARN] Starting in degraded DB mode")
-            return MongoClient(LOCAL_URI, connect=False)
+        mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        mongo_client.admin.command("ping")
+        print("[OK] MongoDB Connected Successfully")
+        return mongo_client
+    except Exception as mongo_error:
+        print("[FAIL] MongoDB connection failed:", mongo_error)
+        raise RuntimeError("Unable to connect to MongoDB using configured URI.") from mongo_error
 
 
 client = create_mongo_client()

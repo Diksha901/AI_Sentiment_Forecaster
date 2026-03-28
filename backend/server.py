@@ -2,8 +2,13 @@
 TrendAI Backend Server
 Main FastAPI application with authentication, scraping, and sentiment analysis
 """
+from pathlib import Path
+
 from dotenv import load_dotenv
-load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env", override=False)
+load_dotenv(BASE_DIR.parent / ".env", override=False)
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
