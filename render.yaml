@@ -1,17 +1,19 @@
 services:
-  - type: static_site
+  - type: static
     name: ai-infosys-frontend
-    root_dir: frontend
-    build_command: cd frontend && npm install && npm run build
-    publish_directory: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
 
-  - type: web_service
+  - type: web
     name: ai-infosys-backend
-    root_dir: backend
-    runtime_image: python:3.11
-    build_command: pip install -r requirements.txt
-    start_command: python -m uvicorn server:app --host 0.0.0.0 --port $PORT
-    env:
+    env: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.render.txt
+    startCommand: python -m uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
       - key: JWT_SECRET_KEY
         scope: project
       - key: GROQ_API_KEY
