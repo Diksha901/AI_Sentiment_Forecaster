@@ -10,7 +10,6 @@ from fastapi.security import OAuth2PasswordBearer
 
 from rag.rag_service import get_rag_engine
 from rag.document_processor import DocumentProcessor
-from pymongo import MongoClient
 
 # Initialize router
 router = APIRouter(
@@ -20,17 +19,25 @@ router = APIRouter(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-# MongoDB connection (reuse from main server)
+# MongoDB collections (reuse shared backend connection)
+product_collection = None
+news_collection = None
+
 try:
-    client = MongoClient(
-        "mongodb+srv://DevanshVerma:qazxsw123@cluster0.fxr8rpr.mongodb.net/ai_project_db?retryWrites=true&w=majority&appName=Cluster0",
-        serverSelectionTimeoutMS=5000
-    )
-    db = client["ai_project_db"]
-    product_collection = db["reviews"]
-    news_collection = db["news"]
+    from database import db as shared_db
+    product_collection = shared_db["reviews"]
+    news_collection = shared_db["news"]
 except Exception as e:
     print(f"[WARN] MongoDB connection failed in RAG router: {e}")
+
+
+def _ensure_mongo_ready() -> None:
+    """Fail gracefully when MongoDB is unavailable instead of throwing NameError."""
+    if product_collection is None or news_collection is None:
+        raise HTTPException(
+            status_code=503,
+            detail="MongoDB is not available for RAG fallback/indexing operations"
+        )
 
 
 # Request/Response Models
@@ -115,6 +122,8 @@ def query_rag(
 
 def _simple_search_fallback(request: QueryRequest) -> dict:
     """Simple keyword/category search on MongoDB when RAG is unavailable"""
+    _ensure_mongo_ready()
+
     question_lower = request.question.lower()
 
     # Build a mongo text filter using the question keywords
@@ -315,6 +324,7 @@ def index_from_mongodb(
     ```
     """
     verify_access_token(token)
+    _ensure_mongo_ready()
     
     rag_engine = get_rag_engine()
     if not rag_engine:
