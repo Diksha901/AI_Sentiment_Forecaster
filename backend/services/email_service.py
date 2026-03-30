@@ -14,12 +14,21 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_TIMEOUT_SECONDS = 10
 
+
+def is_email_configured() -> bool:
+    """Return True when SMTP credentials are available."""
+    return bool(GMAIL_EMAIL and GMAIL_APP_PASSWORD)
+
 # Validate configuration
-if not GMAIL_EMAIL or not GMAIL_APP_PASSWORD:
+if not is_email_configured():
     print("[WARN] Email configuration incomplete. Set GMAIL_EMAIL and GMAIL_APP_PASSWORD in .env")
 
 def send_otp_email(recipient_email: str, otp: str):
     """Send OTP via Gmail"""
+    if not is_email_configured():
+        print("[FAIL] OTP email skipped: missing GMAIL_EMAIL/GMAIL_APP_PASSWORD")
+        return False
+
     try:
         subject = "Your 2FA OTP - AI Sentiment Forecaster"
         html_body = f"""
@@ -49,6 +58,10 @@ def send_otp_email(recipient_email: str, otp: str):
 
 def send_password_reset_email(recipient_email: str, reset_token: str, reset_link: str):
     """Send password reset link via Gmail"""
+    if not is_email_configured():
+        print("[FAIL] Password reset email skipped: missing GMAIL_EMAIL/GMAIL_APP_PASSWORD")
+        return False
+
     try:
         subject = "Password Reset - AI Sentiment Forecaster"
         html_body = f"""

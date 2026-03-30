@@ -13,6 +13,7 @@ const Login = () => {
     const [otp, setOtp] = useState("");
     const [step, setStep] = useState("login"); // "login" or "2fa"
     const [error, setError] = useState("");
+    const [resendingOtp, setResendingOtp] = useState(false);
 
     const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
         const controller = new AbortController();
@@ -48,7 +49,14 @@ const Login = () => {
             }
             if (data?.status === "2fa_required") {
                 setStep("2fa");
-                setError("");
+                if (data?.delivery_status === "failed") {
+                    const reason = data?.delivery_error === "email_not_configured"
+                        ? "2FA email service is not configured on server."
+                        : "Failed to deliver OTP email. Please resend OTP.";
+                    setError(data?.otp_debug ? `${reason} Debug OTP: ${data.otp_debug}` : reason);
+                } else {
+                    setError(data?.otp_debug ? `Debug OTP: ${data.otp_debug}` : "");
+                }
             } else if (data?.access_token) {
                 localStorage.setItem("token", data.access_token);
                 localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
@@ -66,6 +74,46 @@ const Login = () => {
             }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResend2FA = async () => {
+        if (!email) {
+            setError("Email is required to resend OTP.");
+            return;
+        }
+
+        setResendingOtp(true);
+        setError("");
+        try {
+            const response = await fetchWithTimeout(apiUrl("/api/auth/resend-2fa"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await readJsonSafe(response);
+            if (!response.ok) {
+                setError(data?.detail || `Failed to resend OTP (${response.status})`);
+                return;
+            }
+
+            if (data?.delivery_status === "failed") {
+                const reason = data?.delivery_error === "email_not_configured"
+                    ? "2FA email service is not configured on server."
+                    : "Failed to deliver OTP email. Try again shortly.";
+                setError(data?.otp_debug ? `${reason} Debug OTP: ${data.otp_debug}` : reason);
+            } else {
+                setError(data?.otp_debug ? `A new OTP has been generated. Debug OTP: ${data.otp_debug}` : "A new OTP has been sent to your email.");
+            }
+        } catch (err) {
+            if (err?.name === "AbortError") {
+                setError("Resend OTP request timed out. Please try again.");
+            } else {
+                setError(err?.message || "Failed to resend OTP.");
+            }
+        } finally {
+            setResendingOtp(false);
         }
     };
     const handleVerify2FA = async (e) => {
@@ -229,6 +277,15 @@ const Login = () => {
                                     className="text-sm text-[var(--text-secondary)] hover:text-primary transition-colors text-center"
                                 >
                                     Back to Login
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={handleResend2FA}
+                                    disabled={resendingOtp}
+                                    className="text-sm text-primary hover:underline transition-colors text-center disabled:opacity-50"
+                                >
+                                    {resendingOtp ? "Resending OTP..." : "Resend OTP"}
                                 </button>
                             </motion.form>
                         )}

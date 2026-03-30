@@ -75,7 +75,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from schemas import UserLogin, UserRegister
 from hashing import verify_password, hash_password, is_bcrypt_hash
 from services import user_service
-from services.email_service import send_otp_email, send_password_reset_email
+from services.email_service import send_otp_email, send_password_reset_email, is_email_configured
 from oauth2 import create_access_token
 from datetime import datetime, timedelta
 import random
@@ -83,6 +83,7 @@ from database import db
 import secrets
 import asyncio
 import logging
+import os
 
 router = APIRouter(
     prefix="/api/auth",
@@ -101,9 +102,30 @@ logger = logging.getLogger(__name__)
 async def _send_otp_email_in_background(recipient_email: str, otp: str):
     """Send OTP asynchronously so login response is never blocked by SMTP latency."""
     try:
-        await asyncio.to_thread(send_otp_email, recipient_email, otp)
+        sent = await asyncio.to_thread(send_otp_email, recipient_email, otp)
+        if sent:
+            otp_collection.update_one(
+                {"email": recipient_email},
+                {"$set": {"delivery_status": "sent", "delivery_error": None}},
+                upsert=True,
+            )
+        else:
+            otp_collection.update_one(
+                {"email": recipient_email},
+                {"$set": {"delivery_status": "failed", "delivery_error": "smtp_send_failed"}},
+                upsert=True,
+            )
     except Exception as exc:
+        otp_collection.update_one(
+            {"email": recipient_email},
+            {"$set": {"delivery_status": "failed", "delivery_error": str(exc)}},
+            upsert=True,
+        )
         logger.warning("OTP email background send failed for %s: %s", recipient_email, exc)
+
+
+def _otp_debug_enabled() -> bool:
+    return os.getenv("OTP_DEBUG_MODE", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 @router.post("/login")
 async def login(payload: UserLogin): # Use your Pydantic schema for validation
@@ -134,25 +156,43 @@ async def login(payload: UserLogin): # Use your Pydantic schema for validation
 
     if is_2fa_enabled:
         otp = generate_otp()
+        email_configured = is_email_configured()
         # Store OTP with a 5-minute expiry
         otp_collection.update_one(
             {"email": user["email"]},
             {"$set": {
                 "otp": otp,
-                "expires_at": datetime.utcnow() + timedelta(minutes=5)
+                "expires_at": datetime.utcnow() + timedelta(minutes=5),
+                "delivery_status": "pending",
+                "delivery_error": None,
             }},
             upsert=True
         )
 
-        # Send OTP in background to avoid blocking login response.
-        asyncio.create_task(_send_otp_email_in_background(user["email"], otp))
+        if email_configured:
+            # Send OTP in background to avoid blocking login response.
+            asyncio.create_task(_send_otp_email_in_background(user["email"], otp))
+        else:
+            otp_collection.update_one(
+                {"email": user["email"]},
+                {"$set": {"delivery_status": "failed", "delivery_error": "email_not_configured"}},
+                upsert=True,
+            )
+            logger.warning("2FA email not configured for user %s", user["email"])
 
-        return {
+        response = {
             "status": "2fa_required",
             "email": user["email"],
             "message": "Please enter the OTP sent to your email",
             "is_admin": is_admin,
+            "delivery_status": "queued" if email_configured else "failed",
+            "delivery_error": None if email_configured else "email_not_configured",
         }
+
+        if _otp_debug_enabled():
+            response["otp_debug"] = otp
+
+        return response
 
     # 4. Normal login logic (No 2FA)
     token = create_access_token(data={"user_id": str(user["_id"]), "is_admin": is_admin})
@@ -183,6 +223,61 @@ async def verify_2fa(payload: dict):
     otp_collection.delete_one({"email": email})
 
     return {"access_token": token, "token_type": "bearer", "is_admin": is_admin}
+
+
+@router.post("/resend-2fa")
+async def resend_2fa(payload: dict):
+    """Resend OTP for an ongoing 2FA login attempt."""
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    user = user_service.get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    otp = generate_otp()
+    otp_collection.update_one(
+        {"email": email},
+        {
+            "$set": {
+                "otp": otp,
+                "expires_at": datetime.utcnow() + timedelta(minutes=5),
+                "delivery_status": "pending",
+                "delivery_error": None,
+            }
+        },
+        upsert=True,
+    )
+
+    email_configured = is_email_configured()
+    if email_configured:
+        asyncio.create_task(_send_otp_email_in_background(email, otp))
+        response = {
+            "status": "resent",
+            "email": email,
+            "message": "A new OTP has been sent to your email",
+            "delivery_status": "queued",
+            "delivery_error": None,
+        }
+    else:
+        otp_collection.update_one(
+            {"email": email},
+            {"$set": {"delivery_status": "failed", "delivery_error": "email_not_configured"}},
+            upsert=True,
+        )
+        response = {
+            "status": "failed",
+            "email": email,
+            "message": "Email service is not configured on the server",
+            "delivery_status": "failed",
+            "delivery_error": "email_not_configured",
+        }
+
+    if _otp_debug_enabled():
+        response["otp_debug"] = otp
+
+    return response
 
 @router.post("/register")
 def register(user: UserRegister):
