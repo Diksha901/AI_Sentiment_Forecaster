@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Plus, Search, Filter, FileText, PieChart, BarChart2, ExternalLink, Loader2, Upload, X } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
-import { apiFetch, apiFetchJSON, exportAsCsv } from '../lib/api';
+import { apiFetch, apiFetchJSON, apiUrl, exportAsCsv } from '../lib/api';
 
 const Reports = () => {
     const navigate = useNavigate();
@@ -27,9 +27,9 @@ const Reports = () => {
         try {
             setLoading(true);
             const [prodRes, newsRes, customRes] = await Promise.all([
-                fetch('/api/products', { headers: { Authorization: `Bearer ${token}` } }),
-                fetch('/api/news', { headers: { Authorization: `Bearer ${token}` } }),
-                fetch('/api/reports/custom', { headers: { Authorization: `Bearer ${token}` } }),
+                fetch(apiUrl('/api/products'), { headers: { Authorization: `Bearer ${token}` } }),
+                fetch(apiUrl('/api/news'), { headers: { Authorization: `Bearer ${token}` } }),
+                fetch(apiUrl('/api/reports/custom'), { headers: { Authorization: `Bearer ${token}` } }),
             ]);
             const prodData = prodRes.ok ? (await prodRes.json()).data || [] : [];
             const newsData = newsRes.ok ? (await newsRes.json()).data || [] : [];

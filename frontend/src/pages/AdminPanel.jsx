@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Users, Box, BarChart, MessageSquare, Search, Bell, Activity, UserPlus, MoreVertical, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { apiUrl, readJsonSafe } from '../lib/api';
 
 const AdminPanel = () => {
     const navigate = useNavigate();
@@ -18,8 +19,8 @@ const AdminPanel = () => {
         if (!isAdmin) { navigate('/dashboard'); return; }
 
         Promise.all([
-            fetch('/api/stats').then(r => r.json()),
-            fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(async (r) => {
+            fetch(apiUrl('/api/stats')).then(async (r) => (await readJsonSafe(r)) || {}),
+            fetch(apiUrl('/api/admin/users'), { headers: { Authorization: `Bearer ${token}` } }).then(async (r) => {
                 if (r.status === 401) {
                     localStorage.removeItem('token');
                     localStorage.removeItem('is_admin');
@@ -30,7 +31,7 @@ const AdminPanel = () => {
                     navigate('/dashboard');
                     return { users: [] };
                 }
-                return r.json();
+                return (await readJsonSafe(r)) || { users: [] };
             }),
         ]).then(([statsData, usersData]) => {
             setApiStats(statsData);

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, Mail, Lock, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import { apiUrl, readJsonSafe } from '../lib/api';
 
 const ForgotPassword = () => {
     const navigate = useNavigate();
@@ -21,21 +22,21 @@ const ForgotPassword = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            const res = await fetch("/api/auth/request-otp", {
+            const res = await fetch(apiUrl("/api/auth/request-otp"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email })
             });
-            const data = await res.json();
+            const data = await readJsonSafe(res);
 
             if (res.ok) {
                 setStep(2);
                 setMessage({ type: 'success', text: 'OTP sent! Please check your inbox.' });
             } else {
-                setMessage({ type: 'error', text: data.detail || 'User not found.' });
+                setMessage({ type: 'error', text: data?.detail || `Request failed (${res.status})` });
             }
         } catch (err) {
-            setMessage({ type: 'error', text: 'Server error. Try again later.' });
+            setMessage({ type: 'error', text: err?.message || 'Server error. Try again later.' });
         } finally {
             setLoading(false);
         }
@@ -46,21 +47,21 @@ const ForgotPassword = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await fetch("/api/auth/verify-reset", {
+            const res = await fetch(apiUrl("/api/auth/verify-reset"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, otp, new_password: newPassword })
             });
-            const data = await res.json();
+            const data = await readJsonSafe(res);
 
             if (res.ok) {
                 setMessage({ type: 'success', text: 'Password reset successful! Redirecting...' });
                 setTimeout(() => navigate('/login'), 3000);
             } else {
-                setMessage({ type: 'error', text: data.detail || 'Invalid OTP.' });
+                setMessage({ type: 'error', text: data?.detail || `Request failed (${res.status})` });
             }
         } catch (err) {
-            setMessage({ type: 'error', text: 'Reset failed.' });
+            setMessage({ type: 'error', text: err?.message || 'Reset failed.' });
         } finally {
             setLoading(false);
         }

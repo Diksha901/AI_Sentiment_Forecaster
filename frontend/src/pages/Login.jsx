@@ -3,6 +3,7 @@ import { motion,AnimatePresence } from 'framer-motion';
 import { BarChart3, Mail, Lock, ArrowRight,ShieldCheck } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import { apiUrl, readJsonSafe } from '../lib/api';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -17,7 +18,7 @@ const Login = () => {
         setLoading(true);
         setError("");
         try {
-            const response = await fetch("/api/auth/login", {
+            const response = await fetch(apiUrl("/api/auth/login"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -28,16 +29,16 @@ const Login = () => {
                 })
             });
 
-            const data = await response.json();
+            const data = await readJsonSafe(response);
 
             if (!response.ok) {
-                setError(data.detail || "Login failed");
+                setError(data?.detail || `Login failed (${response.status})`);
                 setLoading(false);
                 return;
             }
-            if (data.status === "2fa_required") {
+            if (data?.status === "2fa_required") {
                 setStep("2fa");
-            } else if (data.access_token) {
+            } else if (data?.access_token) {
                 localStorage.setItem("token", data.access_token);
                 localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
                 navigate("/dashboard");
@@ -45,6 +46,7 @@ const Login = () => {
 
         } catch (error) {
             console.error("Login error:", error);
+            setError(error?.message || "Unable to login right now. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -55,23 +57,23 @@ const Login = () => {
         setError("");
 
         try {
-            const response = await fetch("/api/auth/verify-2fa", {
+            const response = await fetch(apiUrl("/api/auth/verify-2fa"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, code: otp })
             });
 
-            const data = await response.json();
+            const data = await readJsonSafe(response);
 
-            if (response.ok && data.access_token) {
+            if (response.ok && data?.access_token) {
                 localStorage.setItem("token", data.access_token);
                 localStorage.setItem("is_admin", String(Boolean(data.is_admin)));
                 navigate("/dashboard");
             } else {
-                setError(data.detail || "Invalid OTP");
+                setError(data?.detail || "Invalid OTP");
             }
         } catch (err) {
-            setError("Failed to verify OTP.");
+            setError(err?.message || "Failed to verify OTP.");
         } finally {
             setLoading(false);
         }

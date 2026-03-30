@@ -1,4 +1,45 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+function resolveApiBase() {
+  const configuredBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_BACKEND_URL;
+  if (configuredBase) {
+    return configuredBase.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location;
+    const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1";
+
+    if (isLocalHost) {
+      return "http://localhost:8000";
+    }
+
+    // Render convention fallback: <frontend>.onrender.com -> <frontend>-backend.onrender.com
+    if (hostname.endsWith(".onrender.com") && !hostname.includes("-backend.")) {
+      return `https://${hostname.replace(".onrender.com", "-backend.onrender.com")}`;
+    }
+
+    return origin;
+  }
+
+  return "http://localhost:8000";
+}
+
+export const API_BASE = resolveApiBase();
+
+export function apiUrl(path) {
+  if (!path) return API_BASE;
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
+}
+
+export async function readJsonSafe(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Authenticated fetch wrapper.
@@ -22,15 +63,13 @@ export async function apiFetch(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(apiUrl(path), {
       ...fetchOptions,
       headers,
     });
   } catch {
     // Network-level failure (server offline, CORS, DNS, etc.)
-    throw new Error(
-      "Cannot reach the server. Make sure the backend is running on port 8000."
-    );
+    throw new Error("Cannot reach the backend API. Check backend URL and CORS settings.");
   }
 
   // Token expired or missing — bounce to login

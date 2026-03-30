@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { BarChart3, Mail, Lock, User, ArrowRight, Check } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import ThemeToggle from '../components/ThemeToggle';
+import { apiUrl, readJsonSafe } from '../lib/api';
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -18,7 +19,7 @@ const Signup = () => {
 
         try {
             // Register the user
-            const registerResponse = await fetch("/api/auth/register", {
+            const registerResponse = await fetch(apiUrl("/api/auth/register"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -31,16 +32,16 @@ const Signup = () => {
                 })
             });
 
-            const registerData = await registerResponse.json();
+            const registerData = await readJsonSafe(registerResponse);
 
             if (!registerResponse.ok) {
-                console.error("Registration failed:", registerData.detail);
+                console.error("Registration failed:", registerData?.detail || registerResponse.status);
                 setLoading(false);
                 return;
             }
 
             // Automatically log in after successful registration
-            const loginResponse = await fetch("/api/auth/login", {
+            const loginResponse = await fetch(apiUrl("/api/auth/login"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -51,9 +52,9 @@ const Signup = () => {
                 })
             });
 
-            const loginData = await loginResponse.json();
+            const loginData = await readJsonSafe(loginResponse);
 
-            if (loginResponse.ok) {
+            if (loginResponse.ok && loginData?.access_token) {
                 // Save JWT token and navigate to dashboard
                 localStorage.setItem("token", loginData.access_token);
                 localStorage.setItem("is_admin", String(Boolean(loginData.is_admin)));
