@@ -2,31 +2,49 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from os import getenv
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-GMAIL_EMAIL = getenv("GMAIL_EMAIL")
-GMAIL_APP_PASSWORD = getenv("GMAIL_APP_PASSWORD")
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+def _clean_env(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.strip().strip('"').strip("'")
+
+
+def _as_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return _clean_env(value).lower() in {"1", "true", "yes", "on"}
+
+
+GMAIL_EMAIL = _clean_env(getenv("GMAIL_EMAIL"))
+_RAW_GMAIL_APP_PASSWORD = _clean_env(getenv("GMAIL_APP_PASSWORD"))
+GMAIL_APP_PASSWORD = _RAW_GMAIL_APP_PASSWORD.replace(" ", "")
+
+SMTP_SERVER = _clean_env(getenv("SMTP_HOST")) or "smtp.gmail.com"
+SMTP_PORT = int(_clean_env(getenv("SMTP_PORT")) or 587)
+SMTP_USERNAME = _clean_env(getenv("SMTP_USERNAME")) or GMAIL_EMAIL
+SMTP_PASSWORD = _clean_env(getenv("SMTP_PASSWORD")) or GMAIL_APP_PASSWORD
+SMTP_USE_TLS = _as_bool(getenv("SMTP_USE_TLS"), default=True)
+SMTP_USE_SSL = _as_bool(getenv("SMTP_USE_SSL"), default=False)
+SMTP_FROM_EMAIL = _clean_env(getenv("SMTP_FROM_EMAIL")) or GMAIL_EMAIL
 SMTP_TIMEOUT_SECONDS = 10
 
 
 def is_email_configured() -> bool:
     """Return True when SMTP credentials are available."""
-    return bool(GMAIL_EMAIL and GMAIL_APP_PASSWORD)
+    return bool(SMTP_SERVER and SMTP_PORT and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM_EMAIL)
 
 # Validate configuration
 if not is_email_configured():
-    print("[WARN] Email configuration incomplete. Set GMAIL_EMAIL and GMAIL_APP_PASSWORD in .env")
+    print("[WARN] Email configuration incomplete. Set SMTP_* or GMAIL_EMAIL/GMAIL_APP_PASSWORD in environment")
 
 def send_otp_email(recipient_email: str, otp: str):
     """Send OTP via Gmail"""
     if not is_email_configured():
-        print("[FAIL] OTP email skipped: missing GMAIL_EMAIL/GMAIL_APP_PASSWORD")
+        print("[FAIL] OTP email skipped: missing SMTP credentials")
         return False
 
     try:
@@ -59,7 +77,7 @@ def send_otp_email(recipient_email: str, otp: str):
 def send_password_reset_email(recipient_email: str, reset_token: str, reset_link: str):
     """Send password reset link via Gmail"""
     if not is_email_configured():
-        print("[FAIL] Password reset email skipped: missing GMAIL_EMAIL/GMAIL_APP_PASSWORD")
+        print("[FAIL] Password reset email skipped: missing SMTP credentials")
         return False
 
     try:
@@ -92,25 +110,42 @@ def send_password_reset_email(recipient_email: str, reset_token: str, reset_link
 
 def _send_email(recipient_email: str, subject: str, html_body: str):
     """Internal method to send email via Gmail SMTP"""
+    server = None
     try:
         # Create message
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = GMAIL_EMAIL
+        message["From"] = SMTP_FROM_EMAIL
         message["To"] = recipient_email
 
         # Attach HTML body
         part = MIMEText(html_body, "html")
         message.attach(part)
 
-        # Send via Gmail SMTP
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
-        server.starttls()
-        server.login(GMAIL_EMAIL, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_EMAIL, recipient_email, message.as_string())
-        server.quit()
+        # Send via configurable SMTP transport.
+        if SMTP_USE_SSL:
+            server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
+        else:
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS)
+
+        server.ehlo()
+        if SMTP_USE_TLS and not SMTP_USE_SSL:
+            server.starttls()
+            server.ehlo()
+
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.sendmail(SMTP_FROM_EMAIL, recipient_email, message.as_string())
 
         print(f"[OK] Email sent to {recipient_email}")
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[FAIL] SMTP authentication failed: {str(e)}")
+        raise
     except Exception as e:
         print(f"[FAIL] SMTP Error: {str(e)}")
         raise
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
