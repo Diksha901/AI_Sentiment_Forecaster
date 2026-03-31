@@ -26,3 +26,5 @@ services:
         scope: project
       - key: CHROMA_PERSIST_DIR
         value: /opt/render/chromadb
+      - key: OTP_DEBUG_MODE
+        value: "true"
